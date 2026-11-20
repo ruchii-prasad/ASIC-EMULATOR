@@ -19,3 +19,4 @@ results.xml
 *.vcd
 __pycache__/
 .venv/
+tt/

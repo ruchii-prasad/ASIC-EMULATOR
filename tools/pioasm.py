@@ -47,6 +47,7 @@ class Program:
     side_opt: bool = False
     wrap_bottom: int = 0
     wrap_top: int = 0
+    origin: int = 0           # address of the first instruction in instruction memory
     source_lines: list = field(default_factory=list)  # (addr, text) for listings
 
     def config(self):
@@ -77,8 +78,10 @@ def strip_comment(line):
     return re.split(r";|//", line, maxsplit=1)[0].strip()
 
 
-def assemble(text):
-    prog = Program()
+def assemble(text, origin=0):
+    """Assemble `text`. With `origin`, the program is placed at that address:
+    labels and wrap points are shifted; numeric jump targets are left as written."""
+    prog = Program(origin=origin)
     lines = text.splitlines()
 
     # ---- pass 1: directives, labels, instruction addresses ----
@@ -93,7 +96,7 @@ def assemble(text):
             name, line = m.group(1), m.group(2)
             if name in labels:
                 raise AsmError(f"line {line_no}: duplicate label '{name}'")
-            labels[name] = len(instrs)
+            labels[name] = origin + len(instrs)
             if not line:
                 continue
         if line.startswith("."):
@@ -121,17 +124,18 @@ def assemble(text):
 
     if not instrs:
         raise AsmError("program has no instructions")
-    if len(instrs) > IMEM_SIZE:
-        raise AsmError(f"program has {len(instrs)} instructions; instruction memory holds {IMEM_SIZE}")
-    prog.wrap_bottom = wrap_target if wrap_target is not None else 0
-    prog.wrap_top = wrap if wrap is not None else len(instrs) - 1
+    if origin + len(instrs) > IMEM_SIZE:
+        raise AsmError(f"program at origin {origin} has {len(instrs)} instructions; "
+                       f"instruction memory holds {IMEM_SIZE}")
+    prog.wrap_bottom = origin + (wrap_target if wrap_target is not None else 0)
+    prog.wrap_top = origin + (wrap if wrap is not None else len(instrs) - 1)
 
     # ---- pass 2: encode ----
     delay_bits = 5 - prog.side_count - (1 if prog.side_opt else 0)
     for addr, line_no, line in instrs:
         word = encode(line, line_no, labels, prog, delay_bits)
         prog.words.append(word)
-        prog.source_lines.append((addr, line))
+        prog.source_lines.append((origin + addr, line))
     return prog
 
 

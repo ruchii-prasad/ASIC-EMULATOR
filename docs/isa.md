@@ -1,4 +1,4 @@
-# Protocol Engine — Architecture & ISA (draft v0.3)
+# Protocol Engine — Architecture & ISA (draft v0.4)
 
 Status: **draft**. Field widths and register maps may change once synthesis
 tells us the real area cost. Every change is recorded in the changelog at the bottom.
@@ -40,9 +40,14 @@ tricks), and later a CRC/line-coding helper for USB and Ethernet.
 Pin windows (OUT, SET, IN, side-set) are a base plus a count. They wrap modulo 8,
 so base 6 with count 4 covers pins 6, 7, 0, 1.
 
-**Open-drain mode:** each pin has a bit in `ODMASK`. For an open-drain pin,
-writing 0 drives the pad low (`oe = 1`, `out = 0`), and writing 1 releases it
-(`oe = 0`), so an external pull-up makes it high. `PINDIRS` is ignored for those pins.
+**Pin ownership:** a pin is an output if any state machine has set its `PINDIRS` bit.
+If several state machines own the same pin, the highest-numbered one supplies the value.
+All state machines always read the real pad level through IN, WAIT, MOV and `jmp pin`.
+
+**Open-drain mode:** each pin has a bit in `ODMASK`. For an open-drain pin whose
+`PINDIRS` bit is set, writing 0 drives the pad low (`oe = 1`, `out = 0`), and
+writing 1 releases it (`oe = 0`), so an external pull-up makes it high.
+An open-drain pin never drives high.
 
 ## 3. Per-SM state
 
@@ -213,4 +218,5 @@ clock stretching and the ACK bit. To be written after UART and SPI pass in simul
 
 - v0.1 (2026-11-20): first draft.
 - v0.2 (2026-11-20): added the EXEC host command (`0x8s`).
+- v0.4 (2026-11-20): pin ownership rule; open-drain needs `PINDIRS` set. Top level implemented.
 - v0.3 (2026-11-20): documented edge cases for autopull/autopush, PUSH, `OUT ISR` and IRQ WAIT, matching the full SM implementation.

@@ -88,3 +88,14 @@ def test_side_set_two_bits_opt():
 def test_errors(src, msg):
     with pytest.raises(AsmError, match=msg):
         assemble(src)
+
+
+def test_origin_shifts_labels_and_wrap():
+    p = assemble(".wrap_target\nloop:\n set x, 1\n jmp loop\n.wrap", origin=4)
+    assert p.words == [0xE021, 0x0004]
+    assert (p.origin, p.wrap_bottom, p.wrap_top) == (4, 4, 5)
+
+
+def test_origin_overflow():
+    with pytest.raises(AsmError, match="origin 30"):
+        assemble("set x, 0\nset x, 0\nset x, 0", origin=30)
