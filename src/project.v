@@ -29,7 +29,9 @@ module tt_um_ruchii_prasad_protoemu (
   localparam N_CFG = 9;   // per-SM config registers 0..8 (register 9, ODMASK, is shared)
   localparam SW    = (N_SM > 1) ? $clog2(N_SM) : 1;   // bits needed to index an SM
 
-  integer i;
+  // One loop variable per always block: a variable assigned in several blocks
+  // has several drivers, which synthesis rejects (Yosys `check`).
+  integer ci, ii, pi;
 
   // ======================= host link =======================
   wire       cs_start, byte_start, byte_valid, miso;
@@ -103,7 +105,7 @@ module tt_um_ruchii_prasad_protoemu (
       host_irq_clr <= 8'd0;
       resp_load    <= 1'b0;
       resp         <= 8'd0;
-      for (i = 0; i < N_SM*N_CFG; i = i + 1) cfg[i] <= 8'd0;
+      for (ci = 0; ci < N_SM*N_CFG; ci = ci + 1) cfg[ci] <= 8'd0;
     end else begin
       // one-cycle pulses default to 0
       tx_push      <= {N_SM{1'b0}};
@@ -204,9 +206,9 @@ module tt_um_ruchii_prasad_protoemu (
   always @(*) begin
     irq_set_all = 8'd0;
     irq_clr_all = host_irq_clr;
-    for (i = 0; i < N_SM; i = i + 1) begin
-      irq_set_all = irq_set_all | sm_irq_set[i];
-      irq_clr_all = irq_clr_all | sm_irq_clr[i];
+    for (ii = 0; ii < N_SM; ii = ii + 1) begin
+      irq_set_all = irq_set_all | sm_irq_set[ii];
+      irq_clr_all = irq_clr_all | sm_irq_clr[ii];
     end
   end
   always @(posedge clk) begin
@@ -288,9 +290,9 @@ module tt_um_ruchii_prasad_protoemu (
   always @(*) begin
     pin_val = 8'd0;
     pin_dir = 8'd0;
-    for (i = 0; i < N_SM; i = i + 1) begin
-      pin_val = (pin_val & ~sm_pin_dir[i]) | (sm_pin_val[i] & sm_pin_dir[i]);
-      pin_dir = pin_dir | sm_pin_dir[i];
+    for (pi = 0; pi < N_SM; pi = pi + 1) begin
+      pin_val = (pin_val & ~sm_pin_dir[pi]) | (sm_pin_val[pi] & sm_pin_dir[pi]);
+      pin_dir = pin_dir | sm_pin_dir[pi];
     end
   end
 
