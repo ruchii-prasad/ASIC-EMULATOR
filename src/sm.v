@@ -89,6 +89,8 @@ module sm (
   assign pc_o = pc;
 
   // ---------------- helpers ----------------
+  // The helpers below build wide temporaries and keep only some bits on purpose.
+  /* verilator lint_off UNUSEDSIGNAL */
   // rotate an 8-bit value left / right by b (pin windows wrap modulo 8)
   function [7:0] rotl;
     input [7:0] v;
@@ -149,6 +151,8 @@ module sm (
       sat_add8 = (s > 5'd8) ? 4'd8 : s[3:0];
     end
   endfunction
+
+  /* verilator lint_on UNUSEDSIGNAL */
 
   // ---------------- decode ----------------
   wire [15:0] instr  = exec_valid ? exec_instr : imem_data;

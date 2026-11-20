@@ -47,7 +47,7 @@ module fifo #(
         wr_ptr      <= wr_ptr + 1'b1;
       end
       if (do_pop) rd_ptr <= rd_ptr + 1'b1;
-      count <= count + do_push - do_pop;
+      count <= count + {{AW{1'b0}}, do_push} - {{AW{1'b0}}, do_pop};
     end
   end
 

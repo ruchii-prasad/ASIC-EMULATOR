@@ -27,6 +27,7 @@ module tt_um_ruchii_prasad_protoemu (
 
   localparam N_SM  = 2;   // number of state machines (status byte supports up to 4)
   localparam N_CFG = 9;   // per-SM config registers 0..8 (register 9, ODMASK, is shared)
+  localparam SW    = (N_SM > 1) ? $clog2(N_SM) : 1;   // bits needed to index an SM
 
   integer i;
 
@@ -74,8 +75,10 @@ module tt_um_ruchii_prasad_protoemu (
   reg        pend_pop;     // a peeked RX byte is being sent; pop it when its byte starts
 
   wire [3:0] c_hi = byte_data[7:4];        // used when byte_data is the command byte
-  wire [1:0] c_sm = byte_data[1:0];
-  wire [1:0] sm_sel = cmd[1:0];            // SM selected by the current command
+  wire [1:0]    c_sm   = byte_data[1:0];       // SM number in the command byte
+  wire [1:0]    sm_sel = cmd[1:0];             // SM selected by the current command
+  wire [SW-1:0] c_idx  = c_sm[SW-1:0];         // the same, at array-index width
+  wire [SW-1:0] s_idx  = sm_sel[SW-1:0];       // (only used after a `< N_SM` check)
 
   // status byte: {rx_nonempty[3:0], tx_full[3:0]}
   wire [3:0] rx_ne4   = {{(4-N_SM){1'b0}}, ~rx_empty};
@@ -116,7 +119,7 @@ module tt_um_ruchii_prasad_protoemu (
       end
 
       if (byte_start && pend_pop) begin       // host is now clocking out the peeked byte
-        rx_pop[sm_sel] <= 1'b1;
+        rx_pop[s_idx] <= 1'b1;
         pend_pop       <= 1'b0;
       end
 
@@ -128,9 +131,9 @@ module tt_um_ruchii_prasad_protoemu (
           phase <= 2'd0;
           case (c_hi)
             4'h4: if (c_sm < N_SM) begin                       // RX_POP: send head
-              resp      <= rx_empty[c_sm] ? 8'h00 : rx_head[c_sm];
+              resp      <= rx_empty[c_idx] ? 8'h00 : rx_head[c_idx];
               resp_load <= 1'b1;
-              pend_pop  <= ~rx_empty[c_sm];
+              pend_pop  <= ~rx_empty[c_idx];
             end
             4'h5: begin                                        // STATUS
               resp      <= {rx_ne4, tx_full4};
@@ -169,14 +172,14 @@ module tt_um_ruchii_prasad_protoemu (
               end
             end
             4'h3: if (sm_sel < N_SM) begin                     // TX_PUSH
-              tx_push[sm_sel] <= 1'b1;
+              tx_push[s_idx] <= 1'b1;
               host_wdata      <= byte_data;
             end
             4'h4: if (sm_sel < N_SM) begin                     // RX_POP: send the next head
               // the previous byte's pop happened at its byte_start, long before now
-              resp      <= rx_empty[sm_sel] ? 8'h00 : rx_head[sm_sel];
+              resp      <= rx_empty[s_idx] ? 8'h00 : rx_head[s_idx];
               resp_load <= 1'b1;
-              pend_pop  <= ~rx_empty[sm_sel];
+              pend_pop  <= ~rx_empty[s_idx];
             end
             4'h7: host_irq_clr <= byte_data;                   // IRQ_CLEAR
             4'h8: begin                                        // EXEC
@@ -184,7 +187,7 @@ module tt_um_ruchii_prasad_protoemu (
                 hi    <= byte_data;
                 phase <= 2'd1;
               end else begin
-                if (sm_sel < N_SM) exec_valid[sm_sel] <= 1'b1;
+                if (sm_sel < N_SM) exec_valid[s_idx] <= 1'b1;
                 exec_instr <= {hi, byte_data};
                 phase      <= 2'd0;
               end
@@ -237,6 +240,10 @@ module tt_um_ruchii_prasad_protoemu (
       wire [7:0] r_pinset = cfg[s*N_CFG + 6];
       wire [7:0] r_pinin  = cfg[s*N_CFG + 7];
       wire [7:0] r_jmppin = cfg[s*N_CFG + 8];
+      wire [2:0] tx_count, rx_count;                  // FIFO fill levels, not used at the top level
+      // reserved config bits and FIFO counts are not used (yet)
+      wire _unused_sm = &{r_exec_l[7:5], r_pinout[7], r_pinset[7:6], r_pinin[7:6],
+                          r_jmppin[7:3], tx_count, rx_count, 1'b0};
 
       wire tick;
       clk_div #(.W(16)) u_div (
@@ -247,11 +254,11 @@ module tt_um_ruchii_prasad_protoemu (
 
       fifo #(.W(8), .DEPTH(4), .AW(2)) u_txf (
           .clk(clk), .rst_n(rst_n), .push(tx_push[s]), .din(host_wdata), .pop(tx_pop),
-          .dout(tx_data), .empty(tx_empty), .full(tx_full[s]), .count());
+          .dout(tx_data), .empty(tx_empty), .full(tx_full[s]), .count(tx_count));
 
       fifo #(.W(8), .DEPTH(4), .AW(2)) u_rxf (
           .clk(clk), .rst_n(rst_n), .push(rx_push), .din(rx_data), .pop(rx_pop[s]),
-          .dout(rx_head[s]), .empty(rx_empty[s]), .full(rx_full), .count());
+          .dout(rx_head[s]), .empty(rx_empty[s]), .full(rx_full), .count(rx_count));
 
       sm u_sm (
           .clk(clk), .rst_n(rst_n), .en(sm_en[s]), .tick(tick), .restart(restart[s]),
@@ -293,6 +300,6 @@ module tt_um_ruchii_prasad_protoemu (
   // ======================= host-visible outputs =======================
   assign uo_out = {sm_stalled[0], sm_pc[0], |irq_flags, miso};
 
-  wire _unused = &{ena, ui_in[7:3], 1'b0};
+  wire _unused = &{ena, ui_in[7:3], cmd[3:2], sm_stalled, 1'b0};
 
 endmodule
