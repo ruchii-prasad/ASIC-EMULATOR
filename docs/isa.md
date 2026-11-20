@@ -1,4 +1,4 @@
-# Protocol Engine — Architecture & ISA (draft v0.1)
+# Protocol Engine — Architecture & ISA (draft v0.2)
 
 Status: **draft**. Field widths and register maps may change once synthesis
 tells us the real area cost. Every change is recorded in the changelog at the bottom.
@@ -147,6 +147,10 @@ The host SPI clock must be at most system clock / 8, which is 6.25 MHz at 50 MHz
 | `0x50` | STATUS | One dummy byte. Returns `{rx_nonempty[3:0], tx_full[3:0]}` |
 | `0x6m` | ENABLE | `m` = 4-bit SM enable mask. Enabling an SM resets its PC to `wrap_bottom` |
 | `0x70` | IRQ_CLEAR | Mask of IRQ flags to clear |
+| `0x8s` | EXEC (SM `s`) | `hi lo`: run this one instruction on SM `s` immediately. It ignores the delay field and changes PC only if it jumps. An EXEC that would stall (e.g. `pull` with an empty FIFO) is dropped |
+
+EXEC is how the host sets pin directions and idle levels before enabling an SM.
+For UART TX: `set pindirs, 1` then `set pins, 1`.
 
 ## 7. Reset and reload
 
@@ -198,3 +202,4 @@ clock stretching and the ACK bit. To be written after UART and SPI pass in simul
 ## Changelog
 
 - v0.1 (2026-11-20): first draft.
+- v0.2 (2026-11-20): added the EXEC host command (`0x8s`).
