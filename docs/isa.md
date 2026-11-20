@@ -1,4 +1,4 @@
-# Protocol Engine — Architecture & ISA (draft v0.2)
+# Protocol Engine — Architecture & ISA (draft v0.3)
 
 Status: **draft**. Field widths and register maps may change once synthesis
 tells us the real area cost. Every change is recorded in the changelog at the bottom.
@@ -131,6 +131,16 @@ op 00 none · 01 invert · 10 bit-reverse. src 000 `PINS` · 001 `X` · 010 `Y` 
 - With `autopull = 1`, an `OUT` that would shift past `pull_thresh` first refills OSR from the TX FIFO, stalling if the FIFO is empty.
 - With `autopush = 1`, ISR is pushed automatically once `isr_count` reaches `push_thresh`.
 
+**Edge cases (as implemented in `src/sm.v`):**
+
+- Autopull happens inside the OUT: if OSR has reached `pull_thresh`, the OUT first refills OSR from the TX FIFO, then shifts from the new value in the same step. If the FIFO is empty, the OUT stalls.
+- Autopush happens inside the IN: if the IN brings ISR to `push_thresh`, the shifted ISR goes straight to the RX FIFO and ISR is cleared. If the RX FIFO is full, the IN stalls without shifting.
+- A non-blocking PUSH to a full RX FIFO drops the data, but still clears ISR.
+- `OUT ISR, n` replaces ISR with the shifted-out bits and sets `isr_count = n`.
+- `IRQ WAIT n` sets flag n, then stalls until something clears it (another SM's `WAIT 1 IRQ n`, `IRQ CLEAR n`, or the host).
+- `WAIT 1 IRQ n` clears flag n when it wakes. `WAIT 0 IRQ n` leaves the flag alone.
+- A stalled instruction has no side effects except its side-set.
+
 **Wrap:** after executing the instruction at `wrap_top` (if it did not jump), `PC ← wrap_bottom`. Loops cost no instructions.
 
 ## 6. Host SPI protocol (SPI mode 0, MSB first)
@@ -203,3 +213,4 @@ clock stretching and the ACK bit. To be written after UART and SPI pass in simul
 
 - v0.1 (2026-11-20): first draft.
 - v0.2 (2026-11-20): added the EXEC host command (`0x8s`).
+- v0.3 (2026-11-20): documented edge cases for autopull/autopush, PUSH, `OUT ISR` and IRQ WAIT, matching the full SM implementation.
