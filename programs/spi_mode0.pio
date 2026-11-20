@@ -1,0 +1,9 @@
+; SPI controller, mode 0 (CPOL=0, CPHA=0), MSB first.
+; Config: side pin = SCK, OUT pin = MOSI, IN pin = MISO,
+;         autopull = autopush = 1, thresholds = 8. SCK = SM clock / 4.
+.program spi_mode0
+.side_set 1
+.wrap_target
+    out pins, 1   side 0 [1]  ; SCK low: put next bit on MOSI
+    in  pins, 1   side 1 [1]  ; SCK high: sample MISO
+.wrap

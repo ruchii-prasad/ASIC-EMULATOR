@@ -1,0 +1,12 @@
+; UART TX, 8N1, LSB first. One data bit = 8 SM cycles.
+; Config: side pin = OUT pin = TX, out_dir = LSB-first, autopull off.
+; 115200 baud @ 50 MHz: CLKDIV = 53 (50e6 / 54 / 8 = 115741 baud, +0.47%).
+.program uart_tx
+.side_set 1 opt
+.wrap_target
+    pull        side 1 [7]   ; stop bit / idle high; wait for next byte
+    set x, 7    side 0 [7]   ; start bit
+bitloop:
+    out pins, 1               ; drive next data bit
+    jmp x-- bitloop      [6]  ; 8 cycles per bit
+.wrap
